@@ -6,7 +6,11 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
 from matplotlib.widgets import SpanSelector
 import numpy as np
+from pandas import to_datetime
+from matplotlib.dates import num2date
+import pytz
 
+fig = None
 span_selector = None
 
 def fetch_stock_data(ticker, start="2022-01-01", end="2023-01-01"):
@@ -17,20 +21,52 @@ def fetch_stock_data(ticker, start="2022-01-01", end="2023-01-01"):
     hist = stock.history(start=start, end=end)
     return hist
 
+highlight_patch = None
 
 def onselect(xmin, xmax):
     """
-    Function to handle the event when a region is selected.
-    This function can be enhanced to perform operations on the selected region, such as predictions.
+    Function to handle the event when a region is selected and highlight the region.
     """
-    int_xmin, int_xmax = np.searchsorted(data.index, [xmin, xmax])
-    selected_region = data.iloc[int_xmin:int_xmax + 1]
-    print("Selected region from", data.index[int_xmin], "to", data.index[int_xmax])
+    global highlight_patch, fig
+    
+    # Convert matplotlib float dates to datetime objects
+    xmin_datetime = num2date(xmin)
+    xmax_datetime = num2date(xmax)
+
+    # Assure that data.index is a DatetimeIndex with timezone 'UTC'
+    if not isinstance(data.index, pd.DatetimeIndex):
+        data.index = pd.to_datetime(data.index, utc=True)
+
+    # Use searchsorted to find the indices of the dates in the data index
+    int_xmin = data.index.searchsorted(xmin_datetime)
+    int_xmax = data.index.searchsorted(xmax_datetime)
+
+    # Adjust int_xmax if it's exactly on a data point
+    if int_xmax < len(data.index) and data.index[int_xmax] == xmax_datetime:
+        int_xmax += 1
+
+    # Get the actual plot limits
+    x_values = data.index.to_pydatetime()
+    y_values = data['Close'].values
+
+    # Clear the previous highlighted patch if it exists
+    if highlight_patch:
+        highlight_patch.remove()
+
+    # Add a new patch to highlight the selected region
+    ax = plt.gca()  # Get the current axes
+    highlight_patch = ax.axvspan(x_values[int_xmin], x_values[int_xmax - 1], color='yellow', alpha=0.3)
+
+    # Redraw the figure to show the changes
+    fig.canvas.draw()
+
+    print("Selected region from", data.index[int_xmin], "to", data.index[int_xmax - 1])
 
 def plot_stock_data(data, frame):
     """
     Plots the stock data on a given frame and enables region selection.
     """
+    global fig
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(data.index, data['Close'], label='Close Price', color='blue')
     ax.set_title('Stock Price Over Time')
@@ -39,8 +75,15 @@ def plot_stock_data(data, frame):
     ax.legend()
 
     # Enable the span selector on the plot
-    span = SpanSelector(ax, onselect, 'horizontal', useblit=True,
-                        rectprops=dict(alpha=0.5, facecolor='red'))
+    span = SpanSelector(
+    ax,
+    onselect,
+    "horizontal",
+    useblit=True,
+    props=dict(alpha=0.5, facecolor="tab:blue"),
+    interactive=True,
+    drag_from_anywhere=True
+)
 
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
