@@ -19,6 +19,10 @@ span_cid = None
 ax = None 
 highlight_patch = None
 model_current = None
+prediction_line = None
+fitted_model = None
+prediction_result_label = None
+
 models = ["Linear Regression", "Polynomial Regression", "Ridge Regression",
           "Lasso Regression", "Elastic Net Regression", "SVR",
           "Decision Tree Regression", "Random Forest Regression", "Gradient Boosting Regression"]
@@ -55,7 +59,7 @@ def toggle_span_selector():
 
 
 def onselect(xmin, xmax):
-    global highlight_patch, fig, ax, data
+    global highlight_patch, fig, ax, data, prediction_line, model_current, fitted_model
     
     # Convert matplotlib float dates to datetime objects
     xmin_datetime = num2date(xmin)
@@ -82,10 +86,10 @@ def onselect(xmin, xmax):
     # Perform linear regression on the selected region
     if model_current == "Linear Regression":
 
-        model = perform_linear_regression(X, y)
+        fitted_model = perform_linear_regression(X, y)
 
         # Make predictions
-        predictions = model.predict(X)
+        predictions = fitted_model.predict(X)
 
     # Clear the previous highlighted patch if it exists
     if highlight_patch:
@@ -96,15 +100,17 @@ def onselect(xmin, xmax):
 
     # Plot the regression line linear
     if model_current == "Linear Regression":
-        ax.plot(data.index[int_xmin:int_xmax + 1], predictions, color='red')
+        if prediction_line:
+            prediction_line.remove()
+        prediction_line, = ax.plot(data.index[int_xmin:int_xmax + 1], predictions, color='red')
 
     # Redraw the figure to show the changes
     fig.canvas.draw()
 
     # Print model details in the console
     if model_current == "Linear Regression":
-        print("Model coefficients:", model.coef_)
-        print("Model intercept:", model.intercept_)
+        print("Model coefficients:", fitted_model.coef_)
+        print("Model intercept:", fitted_model.intercept_)
 
 
 def plot_stock_data(data, frame):
@@ -180,9 +186,29 @@ def on_model_change(selection):
     print("New model selected:", model_current)
     # get_data(model_current)
 
+def make_prediction(date_str):
+    global fitted_model, prediction_result_label
+    
+    try:
+        prediction_date = pd.to_datetime(date_str)
+        prediction_ordinal = np.array([[prediction_date.toordinal()]])
+        
+        # Check if we have a fitted model to make a prediction with
+        if fitted_model and hasattr(fitted_model, 'predict'):
+            predicted_price = fitted_model.predict(prediction_ordinal)
+            # Make sure prediction_result_label is not None before calling config
+            if prediction_result_label:
+                prediction_result_label.config(text=f"Predicted price for {date_str}: ${predicted_price[0]:.2f}")
+            else:
+                print("Prediction label is not initialized.")
+        else:
+            messagebox.showerror("Prediction error", "Please select a region and fetch data to fit the model before making a prediction.")
+    except Exception as e:
+        messagebox.showerror("Prediction error", str(e))
+
 
 def main():
-    global ticker_entry, start_entry, end_entry, output_text, graph_frame, toggle_button, model_selector
+    global ticker_entry, start_entry, end_entry, output_text, graph_frame, toggle_button, model_selector, prediction_result_label
 
     app = tk.Tk()
     app.title("Stock Data Fetcher")
@@ -206,7 +232,8 @@ def main():
     selected_model.trace("w", lambda *args: on_model_change(selected_model.get()))
     model_selector = tk.OptionMenu(app, selected_model, *models)
     model_selector.pack()
-
+    prediction_result_label = tk.Label(app, text="")
+    prediction_result_label.pack()
     fetch_button = tk.Button(app, text="Fetch Data", command=lambda: get_data(selected_model.get()))
     fetch_button.pack()
 
@@ -216,6 +243,19 @@ def main():
 
     toggle_button = tk.Button(app, text="Enable Select", command=toggle_span_selector)
     toggle_button.pack()
+
+        # Add input for prediction date
+    tk.Label(app, text="Predict for Date (YYYY-MM-DD):").pack()
+    prediction_date_entry = tk.Entry(app)
+    prediction_date_entry.pack()
+
+    # Add button to make the prediction
+    predict_button = tk.Button(app, text="Make Prediction", command=lambda: make_prediction(prediction_date_entry.get()))
+    predict_button.pack()
+
+    # Add label to display the prediction result
+    prediction_result_label = tk.Label(app, text="")
+    prediction_result_label.pack()
 
     # Frame to hold the graph
     graph_frame = tk.Frame(app)
