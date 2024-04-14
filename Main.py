@@ -16,6 +16,10 @@ span_selector_active = False
 span_cid = None
 ax = None 
 highlight_patch = None
+models = ["Linear Regression", "Polynomial Regression", "Ridge Regression",
+          "Lasso Regression", "Elastic Net Regression", "SVR",
+          "Decision Tree Regression", "Random Forest Regression", "Gradient Boosting Regression"]
+
 
 def fetch_stock_data(ticker, start="2022-01-01", end="2023-01-01"):
     """
@@ -33,18 +37,12 @@ def toggle_span_selector():
     span_selector_active = not span_selector_active
     
     if span_selector_active:
-        # If turning on and span_selector is not initialized, create it
-        if span_selector is None:
-            span_selector = SpanSelector(ax, onselect, 'horizontal', useblit=True,
-                                         props=dict(alpha=0.5, facecolor='red'),
-                                         interactive=True, drag_from_anywhere=True)
         # Activate the span selector
         span_selector.set_active(True)
         toggle_button.config(text="Disable Select")
     else:
         # Deactivate the span selector
-        if span_selector is not None:
-            span_selector.set_active(False)
+        span_selector.set_active(False)
         toggle_button.config(text="Enable Select")
         # Clear the highlighted region when disabling selection
         if highlight_patch:
@@ -101,11 +99,11 @@ def plot_stock_data(data, frame):
     ax.set_ylabel('Close Price')
     ax.legend()
 
-    # If span_selector is already created, set its visibility based on span_selector_active
-    if span_selector is None:
-        span_selector = SpanSelector(ax, onselect, 'horizontal', useblit=True,
-                                     props=dict(alpha=0.5, facecolor='tab:blue'),
-                                     interactive=True, drag_from_anywhere=True)
+    # Always recreate the span selector when plotting new data
+    span_selector = SpanSelector(ax, onselect, 'horizontal', useblit=True,
+                                 props=dict(alpha=0.5, facecolor='tab:blue'),
+                                 interactive=True, drag_from_anywhere=True)
+    # Set the active state of the span selector based on span_selector_active
     span_selector.set_active(span_selector_active)
 
     canvas = FigureCanvasTkAgg(fig, master=frame)
@@ -114,7 +112,7 @@ def plot_stock_data(data, frame):
 
     return span_selector
 
-def get_data():
+def get_data(selected_model):
     global span_selector
     ticker = ticker_entry.get()
     start = start_entry.get()
@@ -122,6 +120,9 @@ def get_data():
     if not ticker or not start or not end:
         messagebox.showerror("Input error", "All fields are required")
         return
+
+    print(f"Selected model: {selected_model}")  # Debug print to check model selection
+
     try:
         global data
         data = fetch_stock_data(ticker, start, end)
@@ -138,8 +139,9 @@ def get_data():
     except Exception as e:
         messagebox.showerror("Fetch error", str(e))
 
+
 def main():
-    global ticker_entry, start_entry, end_entry, output_text, graph_frame, toggle_button
+    global ticker_entry, start_entry, end_entry, output_text, graph_frame, toggle_button, model_selector
 
     app = tk.Tk()
     app.title("Stock Data Fetcher")
@@ -156,7 +158,14 @@ def main():
     end_entry = tk.Entry(app)
     end_entry.pack()
 
-    fetch_button = tk.Button(app, text="Fetch Data", command=get_data)
+    # Model selection dropdown
+    tk.Label(app, text="Select Regression Model:").pack()
+    selected_model = tk.StringVar(app)
+    selected_model.set(models[0])  # default value
+    model_selector = tk.OptionMenu(app, selected_model, *models)
+    model_selector.pack()
+
+    fetch_button = tk.Button(app, text="Fetch Data", command=lambda: get_data(selected_model.get()))
     fetch_button.pack()
 
     output_text = scrolledtext.ScrolledText(app, width=80, height=10)
@@ -171,6 +180,7 @@ def main():
     graph_frame.pack(fill=tk.BOTH, expand=True)
 
     app.mainloop()
+
 
 if __name__ == "__main__":
     main()
