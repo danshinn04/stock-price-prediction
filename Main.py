@@ -12,6 +12,7 @@ import pytz
 
 fig = None
 span_selector = None
+span_selector_active = False
 
 def fetch_stock_data(ticker, start="2022-01-01", end="2023-01-01"):
     """
@@ -22,6 +23,22 @@ def fetch_stock_data(ticker, start="2022-01-01", end="2023-01-01"):
     return hist
 
 highlight_patch = None
+
+def toggle_span_selector():
+    global span_selector_active, span_selector
+    span_selector_active = not span_selector_active
+    
+    if span_selector_active:
+        # If turning on, make the span selector visible and active
+        span_selector.set_visible(True)
+        toggle_button.config(text="Disable Select")
+    else:
+        # If turning off, make the span selector invisible and inactive
+        span_selector.set_visible(False)
+        toggle_button.config(text="Enable Select")
+
+    # Update the canvas
+    fig.canvas.draw_idle()
 
 def onselect(xmin, xmax):
     """
@@ -66,7 +83,7 @@ def plot_stock_data(data, frame):
     """
     Plots the stock data on a given frame and enables region selection.
     """
-    global fig
+    global fig, span_selector, span_selector_active
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(data.index, data['Close'], label='Close Price', color='blue')
     ax.set_title('Stock Price Over Time')
@@ -75,7 +92,9 @@ def plot_stock_data(data, frame):
     ax.legend()
 
     # Enable the span selector on the plot
-    span = SpanSelector(
+    if span_selector is None:
+        # Create the span selector but set its visibility based on span_selector_active
+        span = SpanSelector(
     ax,
     onselect,
     "horizontal",
@@ -116,7 +135,7 @@ def get_data():
         messagebox.showerror("Fetch error", str(e))
 
 def main():
-    global ticker_entry, start_entry, end_entry, output_text, graph_frame
+    global ticker_entry, start_entry, end_entry, output_text, graph_frame, toggle_button
 
     app = tk.Tk()
     app.title("Stock Data Fetcher")
@@ -139,6 +158,9 @@ def main():
     output_text = scrolledtext.ScrolledText(app, width=80, height=10)
     output_text.pack()
     output_text.config(state=tk.DISABLED)
+
+    toggle_button = tk.Button(app, text="Enable Select", command=toggle_span_selector)
+    toggle_button.pack()
 
     # Frame to hold the graph
     graph_frame = tk.Frame(app)
