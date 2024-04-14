@@ -13,6 +13,9 @@ import pytz
 fig = None
 span_selector = None
 span_selector_active = False
+span_cid = None
+ax = None 
+highlight_patch = None
 
 def fetch_stock_data(ticker, start="2022-01-01", end="2023-01-01"):
     """
@@ -25,20 +28,30 @@ def fetch_stock_data(ticker, start="2022-01-01", end="2023-01-01"):
 highlight_patch = None
 
 def toggle_span_selector():
-    global span_selector_active, span_selector
+    global span_selector_active, span_selector, fig, ax, highlight_patch
+
     span_selector_active = not span_selector_active
     
     if span_selector_active:
-        # If turning on, make the span selector visible and active
-        span_selector.set_visible(True)
+        # If turning on and span_selector is not initialized, create it
+        if span_selector is None:
+            span_selector = SpanSelector(ax, onselect, 'horizontal', useblit=True,
+                                         props=dict(alpha=0.5, facecolor='red'),
+                                         interactive=True, drag_from_anywhere=True)
+        # Activate the span selector
+        span_selector.set_active(True)
         toggle_button.config(text="Disable Select")
     else:
-        # If turning off, make the span selector invisible and inactive
-        span_selector.set_visible(False)
+        # Deactivate the span selector
+        if span_selector is not None:
+            span_selector.set_active(False)
         toggle_button.config(text="Enable Select")
+        # Clear the highlighted region when disabling selection
+        if highlight_patch:
+            highlight_patch.remove()
+            highlight_patch = None
+        fig.canvas.draw_idle()
 
-    # Update the canvas
-    fig.canvas.draw_idle()
 
 def onselect(xmin, xmax):
     """
@@ -80,10 +93,7 @@ def onselect(xmin, xmax):
     print("Selected region from", data.index[int_xmin], "to", data.index[int_xmax - 1])
 
 def plot_stock_data(data, frame):
-    """
-    Plots the stock data on a given frame and enables region selection.
-    """
-    global fig, span_selector, span_selector_active
+    global fig, ax, span_selector, span_selector_active
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(data.index, data['Close'], label='Close Price', color='blue')
     ax.set_title('Stock Price Over Time')
@@ -91,24 +101,18 @@ def plot_stock_data(data, frame):
     ax.set_ylabel('Close Price')
     ax.legend()
 
-    # Enable the span selector on the plot
+    # If span_selector is already created, set its visibility based on span_selector_active
     if span_selector is None:
-        # Create the span selector but set its visibility based on span_selector_active
-        span = SpanSelector(
-    ax,
-    onselect,
-    "horizontal",
-    useblit=True,
-    props=dict(alpha=0.5, facecolor="tab:blue"),
-    interactive=True,
-    drag_from_anywhere=True
-)
+        span_selector = SpanSelector(ax, onselect, 'horizontal', useblit=True,
+                                     props=dict(alpha=0.5, facecolor='tab:blue'),
+                                     interactive=True, drag_from_anywhere=True)
+    span_selector.set_active(span_selector_active)
 
     canvas = FigureCanvasTkAgg(fig, master=frame)
     canvas.draw()
     canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-    return span
+    return span_selector
 
 def get_data():
     global span_selector
