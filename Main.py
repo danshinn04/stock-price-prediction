@@ -10,7 +10,7 @@ import numpy as np
 from pandas import to_datetime
 from matplotlib.dates import num2date, date2num
 import pytz
-from Linear_Regression import perform_linear_regression
+from Linear_Regression import perform_linear_regression, perform_polynomial_regression, perform_gradient_boosting_regression, perform_random_forest_regression, perform_decision_tree_regression, perform_svr, perform_elasticnet_regression, perform_lasso_regression, perform_ridge_regression
 from matplotlib.lines import Line2D
 
 fig = None
@@ -61,7 +61,7 @@ def toggle_span_selector():
 
 def onselect(xmin, xmax):
     global highlight_patch, fig, ax, data, prediction_line, model_current, fitted_model
-    
+
     # Convert matplotlib float dates to datetime objects
     xmin_datetime = num2date(xmin)
     xmax_datetime = num2date(xmax)
@@ -70,50 +70,59 @@ def onselect(xmin, xmax):
     if not isinstance(data.index, pd.DatetimeIndex):
         data.index = pd.to_datetime(data.index)
 
-    # Use searchsorted to find the indices of the dates in the data index
+    # Find the indices of the dates in the data index
     int_xmin = data.index.searchsorted(xmin_datetime)
     int_xmax = data.index.searchsorted(xmax_datetime)
 
     # Adjust if xmax is beyond the last data point
     int_xmax = min(int_xmax, len(data.index) - 1)
 
-    # Extract the region from the DataFrame
+    # Extract the region from the DataFrame for regression
     selected_data = data.iloc[int_xmin:int_xmax + 1]
-
-    # Convert the datetime index to a numeric value for regression
     X = selected_data.index.map(lambda x: x.toordinal()).values.reshape(-1, 1)
     y = selected_data['Close'].values
 
-    # Perform linear regression on the selected region
-    if model_current == "Linear Regression":
+    # Select and perform the correct regression based on the current model
+    regression_functions = {
+        "Linear Regression": perform_linear_regression,
+        "Ridge Regression": perform_ridge_regression,
+        "Lasso Regression": perform_lasso_regression,
+        "Elastic Net Regression": perform_elasticnet_regression,
+        "SVR": perform_svr,
+        "Decision Tree Regression": perform_decision_tree_regression,
+        "Random Forest Regression": perform_random_forest_regression,
+        "Gradient Boosting Regression": perform_gradient_boosting_regression,
+        "Polynomial Regression": perform_polynomial_regression
+    }
+    fitted_model = regression_functions[model_current](X, y)
 
-        fitted_model = perform_linear_regression(X, y)
-
-        # Make predictions
-        predictions = fitted_model.predict(X)
-
-    # Clear the previous highlighted patch if it exists
-    if highlight_patch:
-        highlight_patch.remove()
-
-    # Highlight the selected region
-    # ax.axvspan(data.index[int_xmin], data.index[int_xmax], color='yellow', alpha=0.3)
-
-    # Plot the regression line linear
-    if model_current == "Linear Regression":
+    # Make predictions and update the plot
+    if model_current == "Polynomial Regression":
+        # For polynomial, plot over a finer grid
+        fine_X = np.linspace(X.min(), X.max(), 500).reshape(-1, 1)
+        predictions = fitted_model.predict(fine_X)
+        fine_dates = [num2date(date2num(pd.Timestamp.fromordinal(int(date)))) for date in fine_X]
         if prediction_line:
             prediction_line.remove()
-        prediction_line, = ax.plot(data.index[int_xmin:int_xmax + 1], predictions, color='red')
+        prediction_line, = ax.plot(fine_dates, predictions, color='red', label='Polynomial Fit')
+    else:
+        # For other regressions, use the original data points
+        predictions = fitted_model.predict(X)
+        if prediction_line:
+            prediction_line.remove()
+        prediction_line, = ax.plot(selected_data.index, predictions, color='red', label='Regression Fit')
 
-    # Redraw the figure to show the changes
+    # Redraw the figure to show changes
+    ax.legend()
     fig.canvas.draw()
 
-    # Print model details in the console
-    if model_current == "Linear Regression":
+    # Print model details in the console if necessary
+    if hasattr(fitted_model, 'coef_'):
         print("Model coefficients:", fitted_model.coef_)
+    if hasattr(fitted_model, 'intercept_'):
         print("Model intercept:", fitted_model.intercept_)
 
-
+        
 def plot_stock_data(data, frame):
     global fig, ax, span_selector, span_selector_active
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -242,7 +251,6 @@ def main():
     # Create a frame for the entries and buttons
     control_frame = tk.Frame(app)
     control_frame.pack(side=tk.TOP, fill=tk.X)
-    
 
     tk.Label(control_frame, text="Ticker Symbol:").pack(side=tk.LEFT)
     ticker_entry = tk.Entry(control_frame)
@@ -260,6 +268,7 @@ def main():
     tk.Label(control_frame, text="Select Regression Model:").pack(side=tk.LEFT)
     selected_model = tk.StringVar(app)
     selected_model.set(models[0])  # default value
+    selected_model.trace("w", lambda *args: on_model_change(selected_model.get()))
     model_selector = tk.OptionMenu(control_frame, selected_model, *models)
     model_selector.pack(side=tk.LEFT)
 
@@ -291,7 +300,6 @@ def main():
     graph_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
     app.mainloop()
-
 
 if __name__ == "__main__":
     main()
