@@ -1,4 +1,5 @@
 import tkinter as tk
+import matplotlib
 from tkinter import messagebox, scrolledtext
 import yfinance as yf
 import matplotlib.pyplot as plt
@@ -7,10 +8,10 @@ import pandas as pd
 from matplotlib.widgets import SpanSelector
 import numpy as np
 from pandas import to_datetime
-from matplotlib.dates import num2date
+from matplotlib.dates import num2date, date2num
 import pytz
 from Linear_Regression import perform_linear_regression
-
+from matplotlib.lines import Line2D
 
 fig = None
 span_selector = None
@@ -187,7 +188,7 @@ def on_model_change(selection):
     # get_data(model_current)
 
 def make_prediction(date_str):
-    global fitted_model, prediction_result_label
+    global fitted_model, prediction_result_label, ax, fig, data
     
     try:
         prediction_date = pd.to_datetime(date_str)
@@ -195,12 +196,37 @@ def make_prediction(date_str):
         
         # Check if we have a fitted model to make a prediction with
         if fitted_model and hasattr(fitted_model, 'predict'):
+            # Clear the current axes
+            ax.clear()
+            
+            # Re-add the elements to the plot
+            ax.plot(data.index, data['Close'], label='Close Price', color='blue')  # Re-plotting original data
+            ax.set_title('Stock Price Over Time')
+            ax.set_xlabel('Date')
+            ax.set_ylabel('Close Price')
+            
+            # Redraw the model prediction line
+            if model_current == "Linear Regression":
+                selected_indices = data.index.map(lambda x: x.toordinal()).values.reshape(-1, 1)
+                predictions = fitted_model.predict(selected_indices)
+                ax.plot(data.index, predictions, color='red', label='Latest Fitted Model for prediction')
+
+            # Plot the prediction point
             predicted_price = fitted_model.predict(prediction_ordinal)
-            # Make sure prediction_result_label is not None before calling config
+            prediction_matplotlib_date = date2num(prediction_date)
+            ax.plot(prediction_matplotlib_date, predicted_price[0], 'bo', label='Prediction')  # 'bo' is for blue dot
+            
+            # Draw a vertical line at the prediction date
+            ax.axvline(x=prediction_matplotlib_date, color='blue', linestyle='--', alpha=0.5)
+            
+            # Update the prediction result label
             if prediction_result_label:
                 prediction_result_label.config(text=f"Predicted price for {date_str}: ${predicted_price[0]:.2f}")
             else:
                 print("Prediction label is not initialized.")
+
+            ax.legend(loc='best')  # Re-add the legend to display labels
+            fig.canvas.draw()  # Redraw the figure to show the changes
         else:
             messagebox.showerror("Prediction error", "Please select a region and fetch data to fit the model before making a prediction.")
     except Exception as e:
@@ -213,53 +239,56 @@ def main():
     app = tk.Tk()
     app.title("Stock Data Fetcher")
 
-    tk.Label(app, text="Ticker Symbol:").pack()
-    ticker_entry = tk.Entry(app)
-    ticker_entry.pack()
+    # Create a frame for the entries and buttons
+    control_frame = tk.Frame(app)
+    control_frame.pack(side=tk.TOP, fill=tk.X)
+    
 
-    tk.Label(app, text="Start Date (YYYY-MM-DD):").pack()
-    start_entry = tk.Entry(app)
-    start_entry.pack()
+    tk.Label(control_frame, text="Ticker Symbol:").pack(side=tk.LEFT)
+    ticker_entry = tk.Entry(control_frame)
+    ticker_entry.pack(side=tk.LEFT)
 
-    tk.Label(app, text="End Date (YYYY-MM-DD):").pack()
-    end_entry = tk.Entry(app)
-    end_entry.pack()
+    tk.Label(control_frame, text="Start Date (YYYY-MM-DD):").pack(side=tk.LEFT)
+    start_entry = tk.Entry(control_frame)
+    start_entry.pack(side=tk.LEFT)
+
+    tk.Label(control_frame, text="End Date (YYYY-MM-DD):").pack(side=tk.LEFT)
+    end_entry = tk.Entry(control_frame)
+    end_entry.pack(side=tk.LEFT)
 
     # Model selection dropdown
-    tk.Label(app, text="Select Regression Model:").pack()
+    tk.Label(control_frame, text="Select Regression Model:").pack(side=tk.LEFT)
     selected_model = tk.StringVar(app)
     selected_model.set(models[0])  # default value
-    selected_model.trace("w", lambda *args: on_model_change(selected_model.get()))
-    model_selector = tk.OptionMenu(app, selected_model, *models)
-    model_selector.pack()
-    prediction_result_label = tk.Label(app, text="")
-    prediction_result_label.pack()
-    fetch_button = tk.Button(app, text="Fetch Data", command=lambda: get_data(selected_model.get()))
-    fetch_button.pack()
+    model_selector = tk.OptionMenu(control_frame, selected_model, *models)
+    model_selector.pack(side=tk.LEFT)
 
-    output_text = scrolledtext.ScrolledText(app, width=80, height=10)
-    output_text.pack()
-    output_text.config(state=tk.DISABLED)
+    # Fetch Data Button
+    fetch_button = tk.Button(control_frame, text="Fetch Data", command=lambda: get_data(selected_model.get()))
+    fetch_button.pack(side=tk.LEFT)
 
     toggle_button = tk.Button(app, text="Enable Select", command=toggle_span_selector)
     toggle_button.pack()
 
-        # Add input for prediction date
-    tk.Label(app, text="Predict for Date (YYYY-MM-DD):").pack()
-    prediction_date_entry = tk.Entry(app)
-    prediction_date_entry.pack()
+    # Prediction Date Entry and Button
+    tk.Label(control_frame, text="Predict for Date (YYYY-MM-DD):").pack(side=tk.LEFT)
+    prediction_date_entry = tk.Entry(control_frame)
+    prediction_date_entry.pack(side=tk.LEFT)
+    predict_button = tk.Button(control_frame, text="Make Prediction", command=lambda: make_prediction(prediction_date_entry.get()))
+    predict_button.pack(side=tk.LEFT)
 
-    # Add button to make the prediction
-    predict_button = tk.Button(app, text="Make Prediction", command=lambda: make_prediction(prediction_date_entry.get()))
-    predict_button.pack()
+    # Label to display the prediction result
+    prediction_result_label = tk.Label(control_frame, text="")
+    prediction_result_label.pack(side=tk.LEFT)
 
-    # Add label to display the prediction result
-    prediction_result_label = tk.Label(app, text="")
-    prediction_result_label.pack()
+    # Text box for stock data output below the control frame
+    output_text = scrolledtext.ScrolledText(app, width=80, height=10)
+    output_text.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+    output_text.config(state=tk.DISABLED)
 
-    # Frame to hold the graph
+    # Frame to hold the graph, below the output text box
     graph_frame = tk.Frame(app)
-    graph_frame.pack(fill=tk.BOTH, expand=True)
+    graph_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
     app.mainloop()
 
