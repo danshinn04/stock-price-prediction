@@ -12,6 +12,7 @@ from matplotlib.dates import num2date, date2num
 import pytz
 from Linear_Regression import perform_linear_regression, perform_polynomial_regression, perform_gradient_boosting_regression, perform_random_forest_regression, perform_decision_tree_regression, perform_svr, perform_elasticnet_regression, perform_lasso_regression, perform_ridge_regression
 from matplotlib.lines import Line2D
+from Neural_Network_GUI import Neural_Network_GUI
 
 fig = None
 span_selector = None
@@ -271,6 +272,13 @@ def main():
     selected_model.trace("w", lambda *args: on_model_change(selected_model.get()))
     model_selector = tk.OptionMenu(control_frame, selected_model, *models)
     model_selector.pack(side=tk.LEFT)
+
+    # Neural Network GUI
+    nn_gui_frame = tk.Frame(app)
+    nn_gui_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+    # Initialize the neural network GUI and place it in the nn_gui_frame
+    nn_gui = Neural_Network_GUI(nn_gui_frame)
 
     # Fetch Data Button
     fetch_button = tk.Button(control_frame, text="Fetch Data", command=lambda: get_data(selected_model.get()))
