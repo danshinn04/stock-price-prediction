@@ -236,9 +236,10 @@ def on_model_change(selection):
     print("New model selected:", model_current)
     # get_data(model_current)
 
-def setup_and_train_nn():
+def setup_and_train_nn():  # Pass nn_gui as an argument
     # Get user-defined network structure, e.g., from GUI elements
-    network_structure = nn_gui.get_network_structure()  # Adapt this line to match your GUI method
+    global nn_gui
+    network_structure = nn_gui.get_network_structure() 
     ticker = ticker_entry.get()
     start = start_entry.get()
     end = end_entry.get()
@@ -300,7 +301,7 @@ def make_prediction(date_str):
 
 
 def main():
-    global ticker_entry, start_entry, end_entry, output_text, graph_frame, toggle_button, model_selector, prediction_result_label
+    global ticker_entry, start_entry, end_entry, output_text, graph_frame, toggle_button, model_selector, prediction_result_label, nn_gui  # Add nn_gui to global variables
 
     app = tk.Tk()
     app.title("Stock Data Fetcher")
