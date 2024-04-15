@@ -13,6 +13,7 @@ import pytz
 from Linear_Regression import perform_linear_regression, perform_polynomial_regression, perform_gradient_boosting_regression, perform_random_forest_regression, perform_decision_tree_regression, perform_svr, perform_elasticnet_regression, perform_lasso_regression, perform_ridge_regression
 from matplotlib.lines import Line2D
 from Neural_Network_GUI import Neural_Network_GUI
+import tensorflow as tf
 
 fig = None
 span_selector = None
