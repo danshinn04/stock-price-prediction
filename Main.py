@@ -13,7 +13,9 @@ import pytz
 from Linear_Regression import perform_linear_regression, perform_polynomial_regression, perform_gradient_boosting_regression, perform_random_forest_regression, perform_decision_tree_regression, perform_svr, perform_elasticnet_regression, perform_lasso_regression, perform_ridge_regression
 from matplotlib.lines import Line2D
 from Neural_Network_GUI import Neural_Network_GUI
-import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, LSTM, Dropout
+from sklearn.preprocessing import MinMaxScaler
 
 fig = None
 span_selector = None
@@ -25,7 +27,8 @@ model_current = None
 prediction_line = None
 fitted_model = None
 prediction_result_label = None
-
+nn_model = None
+scaler = MinMaxScaler(feature_range=(0, 1))
 models = ["Linear Regression", "Polynomial Regression", "Ridge Regression",
           "Lasso Regression", "Elastic Net Regression", "SVR",
           "Decision Tree Regression", "Random Forest Regression", "Gradient Boosting Regression"]
@@ -59,6 +62,41 @@ def toggle_span_selector():
             highlight_patch.remove()
             highlight_patch = None
         fig.canvas.draw_idle()
+
+
+def create_sequences(data, steps=60):
+    X, y = [], []
+    for i in range(steps, len(data)):
+        X.append(data[i-steps:i])
+        y.append(data[i])
+    return np.array(X), np.array(y)
+
+def create_and_train_nn(data, network_structure, epochs=10, batch_size=32):
+    global nn_model, scaler
+    scaled_data = scaler.fit_transform(np.array(data).reshape(-1, 1))
+    X, y = create_sequences(scaled_data)
+    
+    nn_model = Sequential()
+    nn_model.add(LSTM(units=network_structure[0], return_sequences=True, input_shape=(X.shape[1], 1)))
+    nn_model.add(Dropout(0.2))
+    for layer_size in network_structure[1:-1]:
+        nn_model.add(LSTM(units=layer_size, return_sequences=True))
+        nn_model.add(Dropout(0.2))
+    nn_model.add(LSTM(units=network_structure[-1]))
+    nn_model.add(Dropout(0.2))
+    nn_model.add(Dense(units=1))
+    
+    nn_model.compile(optimizer='adam', loss='mean_squared_error')
+    nn_model.fit(X, y, epochs=epochs, batch_size=batch_size)
+
+def predict_with_nn(data):
+    global nn_model, scaler
+    last_sequence = np.array(data)
+    last_sequence_scaled = scaler.transform(last_sequence.reshape(-1, 1))
+    last_sequence_scaled = np.reshape(last_sequence_scaled, (1, last_sequence_scaled.shape[0], 1))
+    predicted_price_scaled = nn_model.predict(last_sequence_scaled)
+    predicted_price = scaler.inverse_transform(predicted_price_scaled)
+    return predicted_price[0][0]
 
 
 def onselect(xmin, xmax):
@@ -198,6 +236,23 @@ def on_model_change(selection):
     print("New model selected:", model_current)
     # get_data(model_current)
 
+def setup_and_train_nn():
+    # Get user-defined network structure, e.g., from GUI elements
+    network_structure = nn_gui.get_network_structure()  # Adapt this line to match your GUI method
+    ticker = ticker_entry.get()
+    start = start_entry.get()
+    end = end_entry.get()
+    data = fetch_stock_data(ticker, start, end)['Close'].tolist()
+    create_and_train_nn(data, network_structure, epochs=50, batch_size=32)
+    messagebox.showinfo("Training Complete", "The neural network has been trained successfully.")
+
+def predict_on_new_data():
+    date_str = prediction_date_entry.get()  # Assuming this gets the date to predict for
+    data = fetch_stock_data(ticker_entry.get(), start=date_str, end=date_str)['Close'].tolist()
+    predicted_price = predict_with_nn(data)
+    prediction_result_label.config(text=f"Predicted price for {date_str}: ${predicted_price:.2f}")
+
+
 def make_prediction(date_str):
     global fitted_model, prediction_result_label, ax, fig, data
     
@@ -280,6 +335,12 @@ def main():
 
     # Initialize the neural network GUI and place it in the nn_gui_frame
     nn_gui = Neural_Network_GUI(nn_gui_frame)
+
+    nn_train_button = tk.Button(control_frame, text="Train Neural Network", command=setup_and_train_nn)
+    nn_train_button.pack(side=tk.LEFT)
+
+    predict_button = tk.Button(control_frame, text="Make Prediction", command=predict_on_new_data)
+    predict_button.pack(side=tk.LEFT)
 
     # Fetch Data Button
     fetch_button = tk.Button(control_frame, text="Fetch Data", command=lambda: get_data(selected_model.get()))
