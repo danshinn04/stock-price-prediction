@@ -12,7 +12,7 @@ import numpy as np
 # scikit-learn, etc
 
 def fetch_and_prepare_data(ticker, start_date, end_date):
-    return None
+    return None 
 def train_regression_models(X, y):
     return None
 
