@@ -17,6 +17,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, Dropout
 from sklearn.preprocessing import MinMaxScaler
 
+
 fig = None
 span_selector = None
 span_selector_active = False

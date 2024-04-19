@@ -1,0 +1,13 @@
+tkinter
+matplotlib
+yfinance
+pandas
+numpy
+pytz
+Linear_Regression
+Neural_Network_GUI
+tensorflow
+sklearn
+
+
+
